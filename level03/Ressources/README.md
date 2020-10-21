@@ -1,0 +1,9 @@
+## level03
+- Regardons le [code source désassemblé](/level03/source.c) pour mieux comprendre le fonctionnement du binaire :
+    - Il va demander un mot de passe sur l'entrée standard (en tant qu'entier décimal), avant de le transmettre à la fonction `test`.
+    - Dans la fonction `test`, cet entier sera soustrait à `0x1337d00d` (soit 322424845 en décimal). Si le résultat est inférieur ou égal à 15, il est transmis à la fonction `decrypt`.
+    - Dans la fonction `decrypt`, cet entier fait l'objet d'un [XOR](https://en.wikipedia.org/wiki/Bitwise_operations_in_C#Bitwise_XOR_^) avant d'être stocké dans chacun des caractères de la chaîne `str`. Enfin `str` est comparée avec `"Congratulations!"` : si les deux chaînes sont identiques, un shell est lancé.
+- L'objectif de notre exploit est donc d'inverser cette logique de déchiffrement, pour aboutir à un mot de passe efficace.
+    - Le OU exclusif est facile à inverser : si A ^ B = C alors C ^ B = A. En l'occurence, on sait que `str[0] ^ key[0] = 'C'`, et donc que `key[0] = 'C' ^ 'Q'`. Dans la table ASCII, C a la valeur hexadécimale 43, et Q 51. À l'aide d'un [calculateur en ligne](https://xor.pw/), on retrouve donc que `key[0]` a la valeur hexadécimale 12 (soit 18 en décimal). On retrouve ce décalage de 18 sur tous les autres caractères de `str`.
+    - Il nous reste à inverser la soustraction : `res = secret - input`, donc `input = secret - res`. `0x1337d00d` équivaut en décimal à 322424845, donc `input = 322424845 - 18` soit 322424827.
+- Effectivement, 322424827 nous permet bien de lancer un shell. `cat /home/users/level04/.pass` pour obtenir le flag.

